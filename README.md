@@ -4,7 +4,17 @@ Soroban smart contracts for the Veritasor revenue attestation protocol on Stella
 
 ## Contract: `attestation`
 
-Stores one attestation per (business address, period). Each attestation is a Merkle root (32 bytes), timestamp, and version. Duplicate (business, period) submissions are rejected.
+Stores one attestation per (business address, period). Each attestation is a Merkle root (32 bytes), timestamp, version, and the fee paid. Duplicate (business, period) submissions are rejected.
+
+### Dynamic Fee Schedule
+
+The contract supports a tiered, volume-based fee system. Fees are denominated in a configurable Soroban token and collected on each attestation submission.
+
+- **Tier discounts**: Businesses are assigned tiers (Standard, Professional, Enterprise, or custom) with configurable discounts in basis points.
+- **Volume discounts**: Cumulative attestation count triggers bracket-based discounts.
+- **Backward compatible**: When fees are not configured or disabled, attestations are free.
+
+See [docs/attestation-dynamic-fees.md](docs/attestation-dynamic-fees.md) for the full specification, economic rationale, and configuration guide.
 
 ### Methods
 
@@ -16,6 +26,20 @@ Stores one attestation per (business address, period). Each attestation is a Mer
 | `init(admin)` | One-time setup of admin for revocation. |
 | `revoke_attestation(caller, business, period)` | Set attestation status to revoked (admin only). |
 | `get_attestations_page(business, periods, period_start, period_end, status_filter, version_filter, limit, cursor)` | Paginated query with filters. Returns (results, next_cursor). Limit capped at 30. See [docs/attestation-queries.md](docs/attestation-queries.md). |
+| `initialize(admin)` | One-time setup. Sets the admin address. |
+| `configure_fees(token, collector, base_fee, enabled)` | Admin: set fee token, collector, base fee, and toggle. |
+| `set_tier_discount(tier, discount_bps)` | Admin: set discount (0–10 000 bps) for a tier level. |
+| `set_business_tier(business, tier)` | Admin: assign a business to a tier. |
+| `set_volume_brackets(thresholds, discounts)` | Admin: set volume discount brackets. |
+| `set_fee_enabled(enabled)` | Admin: toggle fee collection on/off. |
+| `submit_attestation(business, period, merkle_root, timestamp, version)` | Store attestation; collects fee if enabled. Business must authorize. |
+| `get_attestation(business, period)` | Returns `Option<(BytesN<32>, u64, u32, i128)>` (root, ts, ver, fee_paid). |
+| `verify_attestation(business, period, merkle_root)` | Returns `true` if attestation exists and root matches. |
+| `get_fee_config()` | Current fee configuration or None. |
+| `get_fee_quote(business)` | Fee the business would pay for its next attestation. |
+| `get_business_tier(business)` | Tier assigned to a business (0 if unset). |
+| `get_business_count(business)` | Cumulative attestation count. |
+| `get_admin()` | Contract admin address. |
 
 ### Prerequisites
 
@@ -36,7 +60,7 @@ cd contracts/attestation
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-The `.wasm` artifact will be in `target/wasm32-unknown-unknown/release/veritasor_attestation.wasm` (name may vary by crate name).
+The `.wasm` artifact will be in `target/wasm32-unknown-unknown/release/veritasor_attestation.wasm`.
 
 ### Tests
 
@@ -45,6 +69,8 @@ cd contracts/attestation
 cargo test
 ```
 
+27 tests covering core attestation logic, fee calculation arithmetic, tier/volume discounts, combined discounts, fee toggling, access control, input validation, and a full economic simulation.
+
 ### Project structure
 
 ```
@@ -52,6 +78,9 @@ veritasor-contracts/
 ├── Cargo.toml                 # Workspace root
 ├── docs/
 │   └── attestation-queries.md # Pagination and filtering
+├── Cargo.toml                  # Workspace root
+├── docs/
+│   └── attestation-dynamic-fees.md  # Fee schedule specification
 └── contracts/
     └── attestation/
         ├── Cargo.toml
@@ -59,6 +88,10 @@ veritasor-contracts/
             ├── lib.rs               # Contract logic
             ├── test.rs              # Unit tests
             └── query_pagination_test.rs  # Pagination tests
+            ├── lib.rs               # Contract entry points
+            ├── dynamic_fees.rs      # Fee types, storage, calculation
+            ├── test.rs              # Core attestation tests
+            └── dynamic_fees_test.rs # Fee schedule tests
 ```
 
 ### Deploying (Stellar / Soroban CLI)
