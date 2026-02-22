@@ -34,9 +34,9 @@ mod multisig_test;
 mod test;
 // ─── End test modules ───
 
+pub mod dispute;
 #[cfg(test)]
 mod registry_test;
-pub mod dispute;
 
 #[contract]
 pub struct AttestationContract;
@@ -199,7 +199,6 @@ impl AttestationContract {
         access_control::is_paused(&env)
     }
 
-
     /// Register a new business. The caller must hold `ROLE_BUSINESS` and
     /// authorise as their own address.
     ///
@@ -267,9 +266,6 @@ impl AttestationContract {
         registry::get_status(&env, &business)
     }
 
-
-
-
     // ── Core attestation methods ────────────────────────────────────
 
     /// Submit a revenue attestation.
@@ -285,7 +281,6 @@ impl AttestationContract {
     /// Panics if:
     /// - The contract is paused
     /// - An attestation already exists for the same (business, period)
-    
 
     // pub fn submit_attestation(
     //     env: Env,

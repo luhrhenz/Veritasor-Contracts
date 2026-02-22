@@ -9,21 +9,21 @@
 //
 // =================== Test Coverage =======================
 //
-// ==== Area ====   
-//              
-// Registration            
-// Approval              
-// Suspension            
-// Reactivation          
-// `is_business_active`  
-// `get_business`        
-// `get_business_status` 
-// Tag updates           
-// Metadata integrity    
-// Independent records   
-// Access control        
-//                         
-// Integration gate      
+// ==== Area ====
+//
+// Registration
+// Approval
+// Suspension
+// Reactivation
+// `is_business_active`
+// `get_business`
+// `get_business_status`
+// Tag updates
+// Metadata integrity
+// Independent records
+// Access control
+//
+// Integration gate
 
 use super::*;
 use soroban_sdk::{
@@ -80,7 +80,8 @@ impl Ctx {
     /// Active + suspended → `Suspended`.
     fn suspended(&self) -> Address {
         let b = self.active();
-        self.client.suspend_business(&self.admin, &b, &symbol_short!("audit"));
+        self.client
+            .suspend_business(&self.admin, &b, &symbol_short!("audit"));
         b
     }
 }
@@ -98,7 +99,8 @@ fn register_creates_pending_record() {
     let mut tags = Vec::new(&ctx.env);
     tags.push_back(symbol_short!("retail"));
 
-    ctx.client.register_business(&business, &name_hash, &jurisdiction, &tags);
+    ctx.client
+        .register_business(&business, &name_hash, &jurisdiction, &tags);
 
     let record = ctx.client.get_business(&business).unwrap();
     assert_eq!(record.name_hash, name_hash);
@@ -130,8 +132,10 @@ fn duplicate_registration_panics() {
     let jurisdiction = Symbol::new(&ctx.env, "US");
     let tags = Vec::new(&ctx.env);
 
-    ctx.client.register_business(&business, &name_hash, &jurisdiction, &tags);
-    ctx.client.register_business(&business, &name_hash, &jurisdiction, &tags);
+    ctx.client
+        .register_business(&business, &name_hash, &jurisdiction, &tags);
+    ctx.client
+        .register_business(&business, &name_hash, &jurisdiction, &tags);
 }
 
 #[test]
@@ -191,7 +195,8 @@ fn approve_suspended_panics() {
 #[should_panic(expected = "business not registered")]
 fn approve_unregistered_panics() {
     let ctx = Ctx::new();
-    ctx.client.approve_business(&ctx.admin, &Address::generate(&ctx.env));
+    ctx.client
+        .approve_business(&ctx.admin, &Address::generate(&ctx.env));
 }
 
 #[test]
@@ -211,7 +216,8 @@ fn suspend_active_makes_suspended() {
     ctx.env.ledger().with_mut(|l| l.timestamp = 1_700_002_000);
     let business = ctx.active();
 
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("fraud"));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("fraud"));
 
     let record = ctx.client.get_business(&business).unwrap();
     assert_eq!(record.status, BusinessStatus::Suspended);
@@ -223,7 +229,8 @@ fn suspend_active_makes_suspended() {
 fn suspend_pending_panics() {
     let ctx = Ctx::new();
     let business = ctx.pending();
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("reason"));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("reason"));
 }
 
 #[test]
@@ -231,7 +238,8 @@ fn suspend_pending_panics() {
 fn suspend_already_suspended_panics() {
     let ctx = Ctx::new();
     let business = ctx.suspended();
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("reason"));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("reason"));
 }
 
 #[test]
@@ -251,7 +259,8 @@ fn suspend_without_admin_role_panics() {
     let ctx = Ctx::new();
     let business = ctx.active();
     let non_admin = Address::generate(&ctx.env);
-    ctx.client.suspend_business(&non_admin, &business, &symbol_short!("x"));
+    ctx.client
+        .suspend_business(&non_admin, &business, &symbol_short!("x"));
 }
 
 // ========================= Reactivation: Suspended → Active =========================
@@ -289,7 +298,8 @@ fn reactivate_active_panics() {
 #[should_panic(expected = "business not registered")]
 fn reactivate_unregistered_panics() {
     let ctx = Ctx::new();
-    ctx.client.reactivate_business(&ctx.admin, &Address::generate(&ctx.env));
+    ctx.client
+        .reactivate_business(&ctx.admin, &Address::generate(&ctx.env));
 }
 
 #[test]
@@ -308,22 +318,33 @@ fn full_lifecycle_round_trip() {
     let ctx = Ctx::new();
     let business = ctx.pending();
 
-    assert_eq!(ctx.client.get_business_status(&business), Some(BusinessStatus::Pending));
+    assert_eq!(
+        ctx.client.get_business_status(&business),
+        Some(BusinessStatus::Pending)
+    );
     assert!(!ctx.client.is_business_active(&business));
 
     ctx.client.approve_business(&ctx.admin, &business);
-    assert_eq!(ctx.client.get_business_status(&business), Some(BusinessStatus::Active));
+    assert_eq!(
+        ctx.client.get_business_status(&business),
+        Some(BusinessStatus::Active)
+    );
     assert!(ctx.client.is_business_active(&business));
 
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("audit"));
-    assert_eq!(ctx.client.get_business_status(&business), Some(BusinessStatus::Suspended));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("audit"));
+    assert_eq!(
+        ctx.client.get_business_status(&business),
+        Some(BusinessStatus::Suspended)
+    );
     assert!(!ctx.client.is_business_active(&business));
 
     ctx.client.reactivate_business(&ctx.admin, &business);
     assert!(ctx.client.is_business_active(&business));
 
     // Second suspension/reactivation cycle — proves repeatability.
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("review"));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("review"));
     ctx.client.reactivate_business(&ctx.admin, &business);
     assert!(ctx.client.is_business_active(&business));
 }
@@ -364,7 +385,8 @@ fn update_tags_replaces_tag_set() {
     let mut new_tags = Vec::new(&ctx.env);
     new_tags.push_back(symbol_short!("saas"));
     new_tags.push_back(symbol_short!("b2b"));
-    ctx.client.update_business_tags(&ctx.admin, &business, &new_tags);
+    ctx.client
+        .update_business_tags(&ctx.admin, &business, &new_tags);
 
     assert_eq!(ctx.client.get_business(&business).unwrap().tags.len(), 2);
 }
@@ -372,8 +394,8 @@ fn update_tags_replaces_tag_set() {
 #[test]
 fn update_tags_valid_in_any_state() {
     let ctx = Ctx::new();
-    let pending   = ctx.pending();
-    let active    = ctx.active();
+    let pending = ctx.pending();
+    let active = ctx.active();
     let suspended = ctx.suspended();
 
     let mut tags = Vec::new(&ctx.env);
@@ -381,7 +403,8 @@ fn update_tags_valid_in_any_state() {
 
     ctx.client.update_business_tags(&ctx.admin, &pending, &tags);
     ctx.client.update_business_tags(&ctx.admin, &active, &tags);
-    ctx.client.update_business_tags(&ctx.admin, &suspended, &tags);
+    ctx.client
+        .update_business_tags(&ctx.admin, &suspended, &tags);
 }
 
 #[test]
@@ -390,7 +413,8 @@ fn update_tags_without_admin_role_panics() {
     let ctx = Ctx::new();
     let business = ctx.pending();
     let non_admin = Address::generate(&ctx.env);
-    ctx.client.update_business_tags(&non_admin, &business, &Vec::new(&ctx.env));
+    ctx.client
+        .update_business_tags(&non_admin, &business, &Vec::new(&ctx.env));
 }
 
 // ========================= Metadata integrity =========================
@@ -406,9 +430,11 @@ fn metadata_preserved_through_full_lifecycle() {
     let mut tags = Vec::new(&ctx.env);
     tags.push_back(symbol_short!("fintech"));
 
-    ctx.client.register_business(&business, &name_hash, &jurisdiction, &tags);
+    ctx.client
+        .register_business(&business, &name_hash, &jurisdiction, &tags);
     ctx.client.approve_business(&ctx.admin, &business);
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("review"));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("review"));
     ctx.client.reactivate_business(&ctx.admin, &business);
 
     let record = ctx.client.get_business(&business).unwrap();
@@ -428,11 +454,21 @@ fn multiple_businesses_are_independent() {
     let b2 = ctx.active();
     let b3 = ctx.pending();
 
-    ctx.client.suspend_business(&ctx.admin, &b2, &symbol_short!("test"));
+    ctx.client
+        .suspend_business(&ctx.admin, &b2, &symbol_short!("test"));
 
-    assert_eq!(ctx.client.get_business_status(&b1), Some(BusinessStatus::Active));
-    assert_eq!(ctx.client.get_business_status(&b2), Some(BusinessStatus::Suspended));
-    assert_eq!(ctx.client.get_business_status(&b3), Some(BusinessStatus::Pending));
+    assert_eq!(
+        ctx.client.get_business_status(&b1),
+        Some(BusinessStatus::Active)
+    );
+    assert_eq!(
+        ctx.client.get_business_status(&b2),
+        Some(BusinessStatus::Suspended)
+    );
+    assert_eq!(
+        ctx.client.get_business_status(&b3),
+        Some(BusinessStatus::Pending)
+    );
 
     assert!(ctx.client.is_business_active(&b1));
     assert!(!ctx.client.is_business_active(&b2));
@@ -460,7 +496,8 @@ fn integration_attestation_gate_full_sequence() {
     assert!(ctx.client.is_business_active(&business));
 
     // Suspended → blocked.
-    ctx.client.suspend_business(&ctx.admin, &business, &symbol_short!("check"));
+    ctx.client
+        .suspend_business(&ctx.admin, &business, &symbol_short!("check"));
     assert!(!ctx.client.is_business_active(&business));
 
     // Reactivated → allowed again.
