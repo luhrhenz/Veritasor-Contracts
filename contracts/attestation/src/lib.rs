@@ -1,12 +1,12 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
-// Type aliases to reduce complexity
-type AttestationData = (BytesN<32>, u64, u32, i128);
-type RevocationData = (Address, u64, String);
-type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
+// Type aliases to reduce complexity - exported for other contracts
+pub type AttestationData = (BytesN<32>, u64, u32, i128);
+pub type RevocationData = (Address, u64, String);
+pub type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
 #[allow(dead_code)]
-type AttestationStatusResult = Vec<(String, Option<AttestationData>, Option<RevocationData>)>;
+pub type AttestationStatusResult = Vec<(String, Option<AttestationData>, Option<RevocationData>)>;
 
 // ─── Feature modules: add new `pub mod <name>;` here (one per feature) ───
 pub mod access_control;
