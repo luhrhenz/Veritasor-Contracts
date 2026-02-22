@@ -11,6 +11,8 @@ doctest = false
 
 [dependencies]
 soroban-sdk = "22.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 veritasor-attestation-snapshot = { path = "../attestation-snapshot" }
 
 [dev-dependencies]

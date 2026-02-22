@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::token::StellarAssetClient;
 use soroban_sdk::{Address, Env, String};
-use veritasor_attestation::AttestationContract;
+use veritasor_attestation::{AttestationContract, AttestationContractClient};
 
 fn setup(
     env: &Env,

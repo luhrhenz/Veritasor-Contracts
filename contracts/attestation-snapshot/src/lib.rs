@@ -25,10 +25,11 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Ve
 /// Attestation contract client: WASM import for wasm32 (avoids duplicate symbols), crate for tests.
 #[cfg(target_arch = "wasm32")]
 mod attestation_import {
-    // Path is relative to workspace root per soroban_sdk::contractimport.
+    // Path from crate dir (contracts/attestation-snapshot): ../../ = workspace root.
     soroban_sdk::contractimport!(
-        file = "target/wasm32-unknown-unknown/release/veritasor_attestation.wasm"
+        file = "../../target/wasm32-unknown-unknown/release/veritasor_attestation.wasm"
     );
+    pub use Client as AttestationContractClient;
 }
 #[cfg(not(target_arch = "wasm32"))]
 mod attestation_import {

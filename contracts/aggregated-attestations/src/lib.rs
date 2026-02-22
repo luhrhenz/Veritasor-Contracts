@@ -18,7 +18,19 @@
 //! * Revoked attestations are not re-checked here; snapshot contract is the source of truth.
 
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
-use veritasor_attestation_snapshot::{AttestationSnapshotContractClient, SnapshotRecord};
+
+/// Snapshot client and types: WASM import for wasm32 (avoids linking snapshot contract), crate otherwise.
+#[cfg(target_arch = "wasm32")]
+mod snapshot_import {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/veritasor_attestation_snapshot.wasm"
+    );
+    pub use Client as AttestationSnapshotContractClient;
+}
+#[cfg(not(target_arch = "wasm32"))]
+mod snapshot_import {
+    pub use veritasor_attestation_snapshot::{AttestationSnapshotContractClient, SnapshotRecord};
+}
 
 #[cfg(test)]
 mod test;
@@ -106,13 +118,15 @@ impl AggregatedAttestationsContract {
                 average_trailing_revenue: 0,
             };
         }
-        let client = AttestationSnapshotContractClient::new(&env, &snapshot_contract);
+        let client =
+            snapshot_import::AttestationSnapshotContractClient::new(&env, &snapshot_contract);
         let mut total_trailing_revenue: i128 = 0;
         let mut total_anomaly_count: u32 = 0;
         let mut businesses_with_snapshots: u32 = 0;
         for i in 0..businesses.len() {
             let business = businesses.get(i).unwrap();
-            let snapshots: Vec<SnapshotRecord> = client.get_snapshots_for_business(&business);
+            let snapshots: Vec<snapshot_import::SnapshotRecord> =
+                client.get_snapshots_for_business(&business);
             if !snapshots.is_empty() {
                 businesses_with_snapshots += 1;
                 for j in 0..snapshots.len() {
