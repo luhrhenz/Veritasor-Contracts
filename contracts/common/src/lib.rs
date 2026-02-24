@@ -2,11 +2,16 @@
 
 #![cfg_attr(not(test), no_std)]
 
+pub mod key_rotation;
+
 #[cfg(test)]
 pub mod interface_spec_check;
 
 #[cfg(test)]
 pub mod interface_spec_check_test;
+
+#[cfg(test)]
+pub mod key_rotation_test;
 
 #[cfg(test)]
 pub mod merkle;

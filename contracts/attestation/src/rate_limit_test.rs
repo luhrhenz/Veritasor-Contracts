@@ -45,7 +45,7 @@ fn set_ledger_timestamp(env: &Env, ts: u64) {
 fn submit(env: &Env, client: &AttestationContractClient, business: &Address, index: u32) {
     let period = String::from_str(env, &std::format!("2026-{:02}", index));
     let root = BytesN::from_array(env, &[index as u8; 32]);
-    client.submit_attestation(business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(business, &period, &root, &1_700_000_000u64, &1u32, &None);
 }
 
 // ════════════════════════════════════════════════════════════════════

@@ -175,7 +175,7 @@ fn bench_submit_attestation_no_fee() {
     let root = BytesN::from_array(&env, &[1u8; 32]);
 
     let before = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after = BudgetSnapshot::capture(&env);
 
     let cost = before.delta(&after);
@@ -194,7 +194,7 @@ fn bench_submit_attestation_with_fee() {
     let root = BytesN::from_array(&env, &[1u8; 32]);
 
     let before = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after = BudgetSnapshot::capture(&env);
 
     let cost = before.delta(&after);
@@ -210,7 +210,7 @@ fn bench_verify_attestation() {
     let period = String::from_str(&env, "2026-02");
     let root = BytesN::from_array(&env, &[2u8; 32]);
 
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
 
     let before = BudgetSnapshot::capture(&env);
     let result = client.verify_attestation(&business, &period, &root);
@@ -230,7 +230,7 @@ fn bench_revoke_attestation() {
     let period = String::from_str(&env, "2026-02");
     let root = BytesN::from_array(&env, &[3u8; 32]);
 
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
 
     let reason = String::from_str(&env, "fraud detected");
 
@@ -252,7 +252,7 @@ fn bench_migrate_attestation() {
     let old_root = BytesN::from_array(&env, &[4u8; 32]);
     let new_root = BytesN::from_array(&env, &[5u8; 32]);
 
-    client.submit_attestation(&business, &period, &old_root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &old_root, &1_700_000_000u64, &1u32, &None);
 
     let before = BudgetSnapshot::capture(&env);
     client.migrate_attestation(&admin, &business, &period, &new_root, &2u32);
@@ -271,7 +271,7 @@ fn bench_get_attestation() {
     let period = String::from_str(&env, "2026-02");
     let root = BytesN::from_array(&env, &[6u8; 32]);
 
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
 
     let before = BudgetSnapshot::capture(&env);
     let result = client.get_attestation(&business, &period);
@@ -313,7 +313,7 @@ fn bench_submit_batch_small() {
     for i in 0..batch_size {
         let period = String::from_str(&env, &std::format!("2026-{:02}", i + 1));
         let root = BytesN::from_array(&env, &[i as u8; 32]);
-        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     }
 
     let after = BudgetSnapshot::capture(&env);
@@ -345,7 +345,7 @@ fn bench_submit_batch_large() {
             &std::format!("2026-{:02}-{:02}", (i / 12) + 1, (i % 12) + 1),
         );
         let root = BytesN::from_array(&env, &[i as u8; 32]);
-        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     }
 
     let after = BudgetSnapshot::capture(&env);
@@ -379,7 +379,7 @@ fn bench_fee_with_tier_discount() {
     let root = BytesN::from_array(&env, &[7u8; 32]);
 
     let before = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after = BudgetSnapshot::capture(&env);
 
     let cost = before.delta(&after);
@@ -402,7 +402,7 @@ fn bench_fee_with_volume_discount() {
     for i in 0..10 {
         let period = String::from_str(&env, &std::format!("2026-{:02}", i + 1));
         let root = BytesN::from_array(&env, &[i as u8; 32]);
-        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     }
 
     // Benchmark the 11th submission with volume discount
@@ -410,7 +410,7 @@ fn bench_fee_with_volume_discount() {
     let root = BytesN::from_array(&env, &[11u8; 32]);
 
     let before = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after = BudgetSnapshot::capture(&env);
 
     let cost = before.delta(&after);
@@ -437,7 +437,7 @@ fn bench_fee_with_combined_discounts() {
     for i in 0..5 {
         let period = String::from_str(&env, &std::format!("2026-{:02}", i + 1));
         let root = BytesN::from_array(&env, &[i as u8; 32]);
-        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+        client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     }
 
     // Benchmark with both discounts active
@@ -445,7 +445,7 @@ fn bench_fee_with_combined_discounts() {
     let root = BytesN::from_array(&env, &[6u8; 32]);
 
     let before = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after = BudgetSnapshot::capture(&env);
 
     let cost = before.delta(&after);
@@ -496,7 +496,7 @@ fn bench_worst_case_verify_revoked() {
     let period = String::from_str(&env, "2026-02");
     let root = BytesN::from_array(&env, &[8u8; 32]);
 
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     client.revoke_attestation(&admin, &business, &period, &String::from_str(&env, "test"));
 
     let before = BudgetSnapshot::capture(&env);
@@ -525,7 +525,7 @@ fn bench_worst_case_large_merkle_root() {
     );
 
     let before = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after = BudgetSnapshot::capture(&env);
 
     let cost = before.delta(&after);
@@ -544,7 +544,7 @@ fn bench_comparative_read_vs_write() {
 
     // Measure write
     let before_write = BudgetSnapshot::capture(&env);
-    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32);
+    client.submit_attestation(&business, &period, &root, &1_700_000_000u64, &1u32, &None);
     let after_write = BudgetSnapshot::capture(&env);
 
     // Measure read

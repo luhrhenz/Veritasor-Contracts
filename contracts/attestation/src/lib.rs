@@ -23,6 +23,8 @@ pub use rate_limit::RateLimitConfig;
 #[cfg(test)]
 mod access_control_test;
 #[cfg(test)]
+mod anomaly_test;
+#[cfg(test)]
 mod dynamic_fees_test;
 #[cfg(test)]
 mod events_test;
@@ -30,6 +32,8 @@ mod events_test;
 mod expiry_test;
 #[cfg(test)]
 mod extended_metadata_test;
+#[cfg(test)]
+mod key_rotation_test;
 #[cfg(test)]
 mod multisig_test;
 #[cfg(test)]
@@ -586,11 +590,7 @@ impl AttestationContract {
         let key = (ANOMALY_KEY_TAG, business, period);
         env.storage().instance().get(&key)
     }
-}
 
-mod test;
-#[cfg(test)]
-mod anomaly_test;
     // ── Multisig Operations ─────────────────────────────────────────
 
     /// Create a new multisig proposal.
@@ -669,6 +669,27 @@ mod anomaly_test;
                     &env, token, collector, base_fee, enabled, &executor,
                 );
             }
+            ProposalAction::EmergencyRotateAdmin(ref new_admin) => {
+                let old_admin = dynamic_fees::get_admin(&env);
+
+                // Execute emergency rotation (no timelock)
+                veritasor_common::key_rotation::emergency_rotate(
+                    &env,
+                    &old_admin,
+                    new_admin,
+                );
+
+                // Transfer admin in dynamic_fees storage
+                dynamic_fees::set_admin(&env, new_admin);
+
+                // Transfer ADMIN role: revoke from old, grant to new
+                access_control::revoke_role(&env, &old_admin, ROLE_ADMIN);
+                access_control::grant_role(&env, new_admin, ROLE_ADMIN);
+
+                events::emit_key_rotation_confirmed(
+                    &env, &old_admin, new_admin, true,
+                );
+            }
         }
 
         multisig::mark_executed(&env, proposal_id);
@@ -743,6 +764,117 @@ mod anomaly_test;
     /// Returns 0 when rate limiting is not configured or disabled.
     pub fn get_submission_window_count(env: Env, business: Address) -> u32 {
         rate_limit::get_submission_count(&env, &business)
+    }
+
+    // ── Key Rotation ────────────────────────────────────────────────
+
+    /// Configure the key rotation timelock and cooldown parameters.
+    ///
+    /// Only the admin can update rotation configuration.
+    /// * `timelock_ledgers` – Ledger sequences to wait before confirming (≥ 1).
+    /// * `confirmation_window_ledgers` – Window during which confirmation is valid (≥ 1).
+    /// * `cooldown_ledgers` – Minimum ledgers between successive rotations.
+    pub fn configure_key_rotation(
+        env: Env,
+        timelock_ledgers: u32,
+        confirmation_window_ledgers: u32,
+        cooldown_ledgers: u32,
+    ) {
+        dynamic_fees::require_admin(&env);
+        let config = veritasor_common::key_rotation::RotationConfig {
+            timelock_ledgers,
+            confirmation_window_ledgers,
+            cooldown_ledgers,
+        };
+        veritasor_common::key_rotation::set_rotation_config(&env, &config);
+    }
+
+    /// Propose an admin key rotation to a new address.
+    ///
+    /// Only the current admin can propose. Starts a timelock period after
+    /// which the new admin must confirm. Both parties must act for the
+    /// rotation to complete.
+    pub fn propose_key_rotation(env: Env, new_admin: Address) {
+        let current_admin = dynamic_fees::require_admin(&env);
+        let request = veritasor_common::key_rotation::propose_rotation(
+            &env,
+            &current_admin,
+            &new_admin,
+        );
+        events::emit_key_rotation_proposed(
+            &env,
+            &current_admin,
+            &new_admin,
+            request.timelock_until,
+            request.expires_at,
+        );
+    }
+
+    /// Confirm a pending admin key rotation.
+    ///
+    /// Only the proposed new admin can confirm. The timelock must have
+    /// elapsed and the confirmation window must not have expired.
+    /// On success, admin privileges transfer to the new address.
+    pub fn confirm_key_rotation(env: Env, caller: Address) {
+        let old_admin = dynamic_fees::get_admin(&env);
+        let pending = veritasor_common::key_rotation::get_pending_rotation(&env)
+            .expect("no pending rotation");
+        let new_admin = pending.new_admin.clone();
+
+        // New admin must authorize confirmation
+        caller.require_auth();
+        assert!(caller == new_admin, "caller is not the proposed new admin");
+
+        let _result = veritasor_common::key_rotation::confirm_rotation(&env, &new_admin);
+
+        // Transfer admin in dynamic_fees storage
+        dynamic_fees::set_admin(&env, &new_admin);
+
+        // Transfer ADMIN role: revoke from old, grant to new
+        access_control::revoke_role(&env, &old_admin, ROLE_ADMIN);
+        access_control::grant_role(&env, &new_admin, ROLE_ADMIN);
+
+        events::emit_key_rotation_confirmed(&env, &old_admin, &new_admin, false);
+    }
+
+    /// Cancel a pending admin key rotation.
+    ///
+    /// Only the current admin (who proposed the rotation) can cancel.
+    pub fn cancel_key_rotation(env: Env) {
+        let current_admin = dynamic_fees::require_admin(&env);
+        let request = veritasor_common::key_rotation::cancel_rotation(&env, &current_admin);
+        events::emit_key_rotation_cancelled(&env, &current_admin, &request.new_admin);
+    }
+
+    /// Check if there is a pending key rotation.
+    pub fn has_pending_key_rotation(env: Env) -> bool {
+        veritasor_common::key_rotation::has_pending_rotation(&env)
+    }
+
+    /// Get the pending key rotation details, if any.
+    pub fn get_pending_key_rotation(
+        env: Env,
+    ) -> Option<veritasor_common::key_rotation::RotationRequest> {
+        veritasor_common::key_rotation::get_pending_rotation(&env)
+    }
+
+    /// Get the key rotation history.
+    pub fn get_key_rotation_history(
+        env: Env,
+    ) -> Vec<veritasor_common::key_rotation::RotationRecord> {
+        veritasor_common::key_rotation::get_rotation_history(&env)
+    }
+
+    /// Get the total count of key rotations performed.
+    pub fn get_key_rotation_count(env: Env) -> u32 {
+        veritasor_common::key_rotation::get_rotation_count(&env)
+    }
+
+    /// Get the current key rotation configuration.
+    pub fn get_key_rotation_config(
+        env: Env,
+    ) -> veritasor_common::key_rotation::RotationConfig {
+        veritasor_common::key_rotation::get_rotation_config(&env)
     }
 
     // ─── New feature methods: add new sections below (e.g. `// ── MyFeature ───` then methods). Do not edit sections above. ───

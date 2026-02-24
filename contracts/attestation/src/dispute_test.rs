@@ -367,7 +367,7 @@ fn test_dispute_lifecycle_complete_flow() {
     let root = BytesN::from_array(&env, &[1u8; 32]);
     let timestamp = 1700000000u64;
     let version = 1u32;
-    client.submit_attestation(&business, &period, &root, &timestamp, &version);
+    client.submit_attestation(&business, &period, &root, &timestamp, &version, &None);
 
     // Phase 2: Open dispute
     let challenger = Address::generate(&env);
