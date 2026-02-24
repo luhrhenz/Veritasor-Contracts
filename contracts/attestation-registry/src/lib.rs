@@ -35,7 +35,7 @@
 //! - Trust only in the governance/admin for upgrade decisions
 //! - Callers verify implementation addresses before use
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, String};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env};
 
 #[cfg(test)]
 mod test;

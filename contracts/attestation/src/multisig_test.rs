@@ -45,7 +45,7 @@ fn setup_with_multisig() -> (
 
 #[test]
 fn test_initialize_multisig() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, _admin, owners) = setup_with_multisig();
 
     assert_eq!(client.get_multisig_owners().len(), 3);
     assert_eq!(client.get_multisig_threshold(), 2);
@@ -102,7 +102,7 @@ fn test_non_owner_cannot_create_proposal() {
 
 #[test]
 fn test_approve_proposal() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, admin, owners) = setup_with_multisig();
     let owner2 = owners.get(1).unwrap();
 
     let proposal_id = client.create_proposal(&admin, &ProposalAction::Pause);
@@ -154,7 +154,7 @@ fn test_proposer_can_reject() {
 
 #[test]
 fn test_owner_can_reject() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, admin, owners) = setup_with_multisig();
     let owner2 = owners.get(1).unwrap();
 
     let proposal_id = client.create_proposal(&admin, &ProposalAction::Pause);
@@ -172,7 +172,7 @@ fn test_owner_can_reject() {
 
 #[test]
 fn test_execute_pause_proposal() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, admin, owners) = setup_with_multisig();
     let owner2 = owners.get(1).unwrap();
 
     let proposal_id = client.create_proposal(&admin, &ProposalAction::Pause);
@@ -190,7 +190,7 @@ fn test_execute_pause_proposal() {
 
 #[test]
 fn test_execute_unpause_proposal() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, admin, owners) = setup_with_multisig();
     let owner2 = owners.get(1).unwrap();
 
     // First pause
@@ -223,7 +223,7 @@ fn test_execute_grant_role_proposal() {
 
 #[test]
 fn test_execute_change_threshold_proposal() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, admin, owners) = setup_with_multisig();
     let owner2 = owners.get(1).unwrap();
 
     assert_eq!(client.get_multisig_threshold(), 2);
@@ -320,7 +320,7 @@ fn test_proposal_ids_increment() {
 
 #[test]
 fn test_multiple_proposals_independent() {
-    let (env, client, admin, owners) = setup_with_multisig();
+    let (_env, client, admin, owners) = setup_with_multisig();
     let owner2 = owners.get(1).unwrap();
 
     let pause_id = client.create_proposal(&admin, &ProposalAction::Pause);

@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 //! Comprehensive test suite for the Attestation Registry contract.
 //!
 //! Tests cover:
@@ -49,7 +47,7 @@ fn setup_uninitialized() -> (Env, AttestationRegistryClient<'static>) {
 
 #[test]
 fn initialize_success() {
-    let (env, client, admin, initial_impl) = setup();
+    let (_env, client, admin, initial_impl) = setup();
 
     assert!(client.is_initialized());
     assert_eq!(client.get_admin(), Some(admin));
@@ -62,7 +60,7 @@ fn initialize_success() {
 #[test]
 #[should_panic(expected = "already initialized")]
 fn double_initialize_panics() {
-    let (env, client, admin, initial_impl) = setup();
+    let (_env, client, admin, initial_impl) = setup();
     client.initialize(&admin, &initial_impl, &1u32);
 }
 
@@ -76,13 +74,13 @@ fn operations_before_initialization_panic() {
 
 #[test]
 fn is_initialized_returns_false_when_uninitialized() {
-    let (env, client) = setup_uninitialized();
+    let (_env, client) = setup_uninitialized();
     assert!(!client.is_initialized());
 }
 
 #[test]
 fn query_functions_return_none_when_uninitialized() {
-    let (env, client) = setup_uninitialized();
+    let (_env, client) = setup_uninitialized();
     assert_eq!(client.get_admin(), None);
     assert_eq!(client.get_current_implementation(), None);
     assert_eq!(client.get_current_version(), None);

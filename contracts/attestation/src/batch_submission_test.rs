@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 //! Comprehensive tests for batch attestation submission.
 //!
 //! Covers: basic batch submission, atomicity, edge cases (empty batch,
@@ -12,7 +10,7 @@ extern crate std;
 use super::*;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
-use soroban_sdk::{vec, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 // ════════════════════════════════════════════════════════════════════
 //  Helpers
@@ -32,9 +30,9 @@ fn setup() -> (Env, AttestationContractClient<'static>) {
 struct TestSetupWithFees<'a> {
     env: Env,
     client: AttestationContractClient<'a>,
-    admin: Address,
+    _admin: Address,
     token_addr: Address,
-    collector: Address,
+    _collector: Address,
 }
 
 fn setup_with_fees(base_fee: i128) -> TestSetupWithFees<'static> {
@@ -56,9 +54,9 @@ fn setup_with_fees(base_fee: i128) -> TestSetupWithFees<'static> {
     TestSetupWithFees {
         env,
         client,
-        admin,
+        _admin: admin,
         token_addr,
-        collector,
+        _collector: collector,
     }
 }
 
@@ -701,7 +699,6 @@ fn test_batch_large_size() {
     let mut items = Vec::new(&env);
     for i in 1..=20 {
         let period_str = std::format!("2026-{:02}", i);
-        let period = String::from_str(&env, &period_str);
         let mut root_bytes = [0u8; 32];
         root_bytes[0] = i as u8;
         items.push_back(create_batch_item(
