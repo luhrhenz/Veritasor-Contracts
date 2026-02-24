@@ -49,6 +49,8 @@ pub const TOPIC_PAUSED: Symbol = symbol_short!("paused");
 pub const TOPIC_UNPAUSED: Symbol = symbol_short!("unpaus");
 /// Topic for fee configuration events
 pub const TOPIC_FEE_CONFIG: Symbol = symbol_short!("fee_cfg");
+/// Topic for rate limit configuration events
+pub const TOPIC_RATE_LIMIT: Symbol = symbol_short!("rate_lm");
 
 // Topic for business registered
 pub const TOPIC_BIZ_REGISTERED: Symbol = symbol_short!("biz_reg");
@@ -146,6 +148,20 @@ pub struct FeeConfigChangedEvent {
     /// Base fee amount
     pub base_fee: i128,
     /// Whether fees are enabled
+    pub enabled: bool,
+    /// Address that made the change
+    pub changed_by: Address,
+}
+
+/// Event data for rate limit configuration changes
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct RateLimitConfigChangedEvent {
+    /// Maximum submissions per business in one window
+    pub max_submissions: u32,
+    /// Sliding-window duration in seconds
+    pub window_seconds: u64,
+    /// Whether rate limiting is enabled
     pub enabled: bool,
     /// Address that made the change
     pub changed_by: Address,
@@ -323,4 +339,22 @@ pub fn emit_business_reactivated(env: &Env, business: &Address, reactivated_by: 
         (TOPIC_BIZ_REACTIVATE, business.clone()),
         reactivated_by.clone(),
     );
+/// Emit a rate limit configuration changed event.
+///
+/// This event is emitted when the rate limit configuration is created or
+/// updated by the admin.
+pub fn emit_rate_limit_config_changed(
+    env: &Env,
+    max_submissions: u32,
+    window_seconds: u64,
+    enabled: bool,
+    changed_by: &Address,
+) {
+    let event = RateLimitConfigChangedEvent {
+        max_submissions,
+        window_seconds,
+        enabled,
+        changed_by: changed_by.clone(),
+    };
+    env.events().publish((TOPIC_RATE_LIMIT,), event);
 }
