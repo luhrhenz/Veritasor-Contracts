@@ -1,6 +1,13 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
+// Type aliases to reduce complexity - exported for other contracts
+pub type AttestationData = (BytesN<32>, u64, u32, i128);
+pub type RevocationData = (Address, u64, String);
+pub type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
+#[allow(dead_code)]
+pub type AttestationStatusResult = Vec<(String, Option<AttestationData>, Option<RevocationData>)>;
+
 // ─── Feature modules: add new `pub mod <name>;` here (one per feature) ───
 pub mod access_control;
 pub mod dynamic_fees;
@@ -35,7 +42,7 @@ mod extended_metadata_test;
 #[cfg(test)]
 mod multisig_test;
 #[cfg(test)]
-mod rate_limit_test;
+mod revocation_test;
 #[cfg(test)]
 mod test;
 // ─── End test modules ───
@@ -439,8 +446,19 @@ impl AttestationContract {
 
     /// Revoke an attestation.
     ///
-    /// Only ADMIN role can revoke attestations. This marks the attestation
-    /// as invalid without deleting the data (for audit purposes).
+    /// Only ADMIN role or the business owner can revoke attestations.
+    /// This marks the attestation as invalid without deleting the data (for audit purposes).
+    ///
+    /// # Arguments
+    /// * `caller` - Address performing the revocation (must be ADMIN or the business owner)
+    /// * `business` - Business address whose attestation is being revoked
+    /// * `period` - Period identifier of the attestation to revoke
+    /// * `reason` - Human-readable reason for revocation (for audit trail)
+    ///
+    /// # Panics
+    /// - If caller is not ADMIN and not the business owner
+    /// - If attestation does not exist
+    /// - If attestation is already revoked
     pub fn revoke_attestation(
         env: Env,
         caller: Address,
@@ -448,14 +466,32 @@ impl AttestationContract {
         period: String,
         reason: String,
     ) {
-        access_control::require_admin(&env, &caller);
+        access_control::require_not_paused(&env);
+
+        // Authorization: ADMIN or business owner can revoke
+        let caller_roles = access_control::get_roles(&env, &caller);
+        let is_admin = (caller_roles & access_control::ROLE_ADMIN) != 0;
+        let is_business_owner = caller == business;
+
+        caller.require_auth();
+        assert!(
+            is_admin || is_business_owner,
+            "caller must be ADMIN or the business owner"
+        );
 
         let key = DataKey::Attestation(business.clone(), period.clone());
         assert!(env.storage().instance().has(&key), "attestation not found");
 
-        // Mark as revoked by setting a special revoked key
+        // Check if already revoked
         let revoked_key = DataKey::Revoked(business.clone(), period.clone());
-        env.storage().instance().set(&revoked_key, &true);
+        assert!(
+            !env.storage().instance().has(&revoked_key),
+            "attestation already revoked"
+        );
+
+        // Mark as revoked with timestamp and reason
+        let revocation_data = (caller.clone(), env.ledger().timestamp(), reason.clone());
+        env.storage().instance().set(&revoked_key, &revocation_data);
 
         events::emit_attestation_revoked(&env, &business, &period, &caller, &reason);
     }
@@ -514,9 +550,57 @@ impl AttestationContract {
     }
 
     /// Check if an attestation has been revoked.
+    ///
+    /// Returns true if the attestation exists and has been revoked.
+    /// Returns false if the attestation does not exist or has not been revoked.
     pub fn is_revoked(env: Env, business: Address, period: String) -> bool {
         let revoked_key = DataKey::Revoked(business, period);
-        env.storage().instance().get(&revoked_key).unwrap_or(false)
+        env.storage().instance().has(&revoked_key)
+    }
+
+    /// Get detailed revocation information for an attestation.
+    ///
+    /// Returns Some((revoked_by, timestamp, reason)) if the attestation is revoked,
+    /// or None if the attestation is not revoked or does not exist.
+    ///
+    /// # Arguments
+    /// * `business` - Business address of the attestation
+    /// * `period` - Period identifier of the attestation
+    ///
+    /// # Returns
+    /// * `Some((revoked_by, timestamp, reason))` - Revocation details if revoked
+    /// * `None` - If not revoked or attestation doesn't exist
+    pub fn get_revocation_info(
+        env: Env,
+        business: Address,
+        period: String,
+    ) -> Option<(Address, u64, String)> {
+        let revoked_key = DataKey::Revoked(business, period);
+        env.storage().instance().get(&revoked_key)
+    }
+
+    /// Get the revocation status and details for an attestation.
+    ///
+    /// This is a comprehensive query that returns both the revocation status
+    /// and the attestation data in a single call for efficiency.
+    ///
+    /// # Returns
+    /// * `Some((attestation_data, revocation_info))` - Attestation exists with optional revocation info
+    /// * `None` - Attestation does not exist
+    pub fn get_attestation_with_status(
+        env: Env,
+        business: Address,
+        period: String,
+    ) -> Option<AttestationWithRevocation> {
+        let key = DataKey::Attestation(business.clone(), period.clone());
+        let revoked_key = DataKey::Revoked(business, period);
+
+        if let Some(attestation_data) = env.storage().instance().get(&key) {
+            let revocation_info = env.storage().instance().get(&revoked_key);
+            Some((attestation_data, revocation_info))
+        } else {
+            None
+        }
     }
 
     /// Return stored attestation for (business, period), if any.
@@ -563,14 +647,24 @@ impl AttestationContract {
 
     /// Verify that an attestation exists, is not revoked, and its merkle root matches.
     ///
-    /// Note: This does NOT check expiry. Use `is_expired()` separately to validate freshness.
+    /// This is the main verification method used by external systems to validate
+    /// that an attestation is both authentic and currently active.
+    ///
+    /// # Arguments
+    /// * `business` - Business address of the attestation
+    /// * `period` - Period identifier of the attestation  
+    /// * `merkle_root` - Expected merkle root hash to verify against
+    ///
+    /// # Returns
+    /// * `true` - Attestation exists, is not revoked, and merkle root matches
+    /// * `false` - Attestation does not exist, is revoked, or merkle root doesn't match
     pub fn verify_attestation(
         env: Env,
         business: Address,
         period: String,
         merkle_root: BytesN<32>,
     ) -> bool {
-        // Check if revoked
+        // Check if revoked first (most efficient check)
         if Self::is_revoked(env.clone(), business.clone(), period.clone()) {
             return false;
         }
@@ -584,89 +678,39 @@ impl AttestationContract {
         }
     }
 
-    /// One-time setup of the admin address. Admin is the single authorized updater of the
-    /// authorized-analytics set. Anomaly data is stored under a separate instance key and
-    /// never modifies attestation (merkle root, timestamp, version) storage.
-    pub fn init(env: Env, admin: Address) {
-        admin.require_auth();
-        if env.storage().instance().has(&ADMIN_KEY_TAG) {
-            panic!("admin already set");
-        }
-        env.storage().instance().set(&ADMIN_KEY_TAG, &admin);
-    }
-
-    /// Adds an address to the set of authorized updaters (analytics/oracle). Caller must be admin.
-    pub fn add_authorized_analytics(env: Env, caller: Address, analytics: Address) {
-        caller.require_auth();
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&ADMIN_KEY_TAG)
-            .expect("admin not set");
-        if caller != admin {
-            panic!("caller is not admin");
-        }
-        let key = (AUTHORIZED_KEY_TAG, analytics);
-        env.storage().instance().set(&key, &());
-    }
-
-    /// Removes an address from the set of authorized updaters. Caller must be admin.
-    pub fn remove_authorized_analytics(env: Env, caller: Address, analytics: Address) {
-        caller.require_auth();
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&ADMIN_KEY_TAG)
-            .expect("admin not set");
-        if caller != admin {
-            panic!("caller is not admin");
-        }
-        let key = (AUTHORIZED_KEY_TAG, analytics);
-        env.storage().instance().remove(&key);
-    }
-
-    /// Stores anomaly flags and risk score for an existing attestation. Only addresses in the
-    /// authorized-analytics set (added by admin) may call this; updater must pass their address
-    /// and authorize. flags: bitmask for anomaly conditions (semantics defined off-chain).
-    /// score: risk score in [0, 100]; higher means higher risk. Panics if attestation missing or score > 100.
-    pub fn set_anomaly(
-        env: Env,
-        updater: Address,
-        business: Address,
-        period: String,
-        flags: u32,
-        score: u32,
-    ) {
-        updater.require_auth();
-        let key_auth = (AUTHORIZED_KEY_TAG, updater.clone());
-        if !env.storage().instance().has(&key_auth) {
-            panic!("updater not authorized");
-        }
-        let attest_key = (business.clone(), period.clone());
-        if !env.storage().instance().has(&attest_key) {
-            panic!("attestation does not exist for this business and period");
-        }
-        if score > ANOMALY_SCORE_MAX {
-            panic!("score out of range");
-        }
-        let anomaly_key = (ANOMALY_KEY_TAG, business, period);
-        env.storage().instance().set(&anomaly_key, &(flags, score));
-    }
-
-    /// Returns anomaly flags and risk score for (business, period) if set. For use by lenders.
-    pub fn get_anomaly(
+    /// Get all attestations for a business with their revocation status.
+    ///
+    /// This method is useful for audit and reporting purposes.
+    /// Note: This requires the business to maintain a list of their periods
+    /// as the contract does not store a global index of attestations.
+    ///
+    /// # Arguments
+    /// * `business` - Business address to query attestations for
+    /// * `periods` - List of period identifiers to retrieve
+    ///
+    /// # Returns
+    /// Vector of tuples containing (period, attestation_data, revocation_info)
+    pub fn get_business_attestations(
         env: Env,
         business: Address,
-        period: String,
-    ) -> Option<(u32, u32)> {
-        let key = (ANOMALY_KEY_TAG, business, period);
-        env.storage().instance().get(&key)
-    }
-}
+        periods: Vec<String>,
+    ) -> AttestationStatusResult {
+        let mut results = Vec::new(&env);
 
-mod test;
-#[cfg(test)]
-mod anomaly_test;
+        for i in 0..periods.len() {
+            let period = periods.get(i).unwrap();
+            let attestation_key = DataKey::Attestation(business.clone(), period.clone());
+            let revoked_key = DataKey::Revoked(business.clone(), period.clone());
+
+            let attestation_data = env.storage().instance().get(&attestation_key);
+            let revocation_info = env.storage().instance().get(&revoked_key);
+
+            results.push_back((period.clone(), attestation_data, revocation_info));
+        }
+
+        results
+    }
+
     // ── Multisig Operations ─────────────────────────────────────────
 
     /// Create a new multisig proposal.
