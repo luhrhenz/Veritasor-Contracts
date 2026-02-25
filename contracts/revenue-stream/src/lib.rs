@@ -6,20 +6,62 @@
 
 #![allow(clippy::too_many_arguments)]
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, token, Address, BytesN, Env, IntoVal, String,
+};
 
 /// Attestation client: WASM import for wasm32 (avoids duplicate symbols), crate for tests.
 #[cfg(target_arch = "wasm32")]
 mod attestation_import {
+    // Define type aliases locally to match attestation contract
+    use soroban_sdk::{Address, BytesN, String, Vec};
+    #[allow(dead_code)]
+    pub type AttestationData = (BytesN<32>, u64, u32, i128);
+    #[allow(dead_code)]
+    pub type RevocationData = (Address, u64, String);
+    #[allow(dead_code)]
+    pub type AttestationWithRevocation = (AttestationData, Option<RevocationData>);
+    #[allow(dead_code)]
+    pub type AttestationStatusResult =
+        Vec<(String, Option<AttestationData>, Option<RevocationData>)>;
+
     // Path from crate dir (contracts/revenue-stream): ../../ = workspace root.
     soroban_sdk::contractimport!(
         file = "../../target/wasm32-unknown-unknown/release/veritasor_attestation.wasm"
     );
     pub use Client as AttestationContractClient;
 }
-#[cfg(not(target_arch = "wasm32"))]
-mod attestation_import {
-    pub use veritasor_attestation::AttestationContractClient;
+
+impl<'a> AttestationContractClient<'a> {
+    pub fn new(env: &'a Env, address: &'a Address) -> Self {
+        AttestationContractClient { env, address }
+    }
+
+    pub fn get_attestation(
+        &self,
+        business: &Address,
+        period: &String,
+    ) -> Option<(BytesN<32>, u64, u32, i128, Option<u64>)> {
+        let mut args = soroban_sdk::Vec::new(self.env);
+        args.push_back(business.into_val(self.env));
+        args.push_back(period.into_val(self.env));
+        self.env.invoke_contract(
+            self.address,
+            &soroban_sdk::Symbol::new(self.env, "get_attestation"),
+            args,
+        )
+    }
+
+    pub fn is_revoked(&self, business: &Address, period: &String) -> bool {
+        let mut args = soroban_sdk::Vec::new(self.env);
+        args.push_back(business.into_val(self.env));
+        args.push_back(period.into_val(self.env));
+        self.env.invoke_contract(
+            self.address,
+            &soroban_sdk::Symbol::new(self.env, "is_revoked"),
+            args,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -119,8 +161,7 @@ impl RevenueStreamContract {
             .get(&DataKey::Stream(stream_id))
             .expect("stream not found");
         assert!(!stream.released, "stream already released");
-        let client =
-            attestation_import::AttestationContractClient::new(&env, &stream.attestation_contract);
+        let client = AttestationContractClient::new(&env, &stream.attestation_contract);
         let exists = client
             .get_attestation(&stream.business, &stream.period)
             .is_some();
