@@ -308,10 +308,10 @@ fn prop_data_integrity_and_counter_monotonicity() {
             "case {idx} [{period_str}]: initial count must be 0"
         );
 
-        client.submit_attestation(&business, &period, &root, &timestamp, &version);
+        client.submit_attestation(&business, &period, &root, &timestamp, &version, &None);
 
         // P4: Every field must round-trip exactly.
-        let (got_root, got_ts, got_ver, got_fee) = client
+        let (got_root, got_ts, got_ver, got_fee, _) = client
             .get_attestation(&business, &period)
             .unwrap_or_else(|| {
                 panic!("case {idx} [{period_str}]: attestation must exist after submit")
@@ -340,7 +340,7 @@ fn prop_data_integrity_and_counter_monotonicity() {
 
         // P5 continued: second submit (different period) increments to 2.
         let period2 = String::from_str(&env, &std::format!("{period_str}-v2"));
-        client.submit_attestation(&business, &period2, &root, &timestamp, &version);
+        client.submit_attestation(&business, &period2, &root, &timestamp, &version, &None);
         assert_eq!(
             client.get_business_count(&business),
             2,
@@ -385,7 +385,14 @@ fn prop_verify_consistency() {
             "case {idx}: verify before submit with wrong root must be false"
         );
 
-        client.submit_attestation(&business, &period, &submitted_root, &1_700_000_000, &1);
+        client.submit_attestation(
+            &business,
+            &period,
+            &submitted_root,
+            &1_700_000_000,
+            &1,
+            &None,
+        );
 
         // After submit: correct root → true, wrong roots → false.
         assert!(
@@ -429,7 +436,7 @@ fn prop_revocation_permanence() {
         let period = String::from_str(&env, "2026-01");
         let submitted_root = BytesN::from_array(&env, &sub_bytes);
 
-        client.submit_attestation(&business, &period, &submitted_root, &1_000_000, &1);
+        client.submit_attestation(&business, &period, &submitted_root, &1_000_000, &1, &None);
 
         // Sanity: verifies before revocation.
         assert!(
@@ -492,9 +499,9 @@ fn prop_duplicate_attestation_panics() {
             let business = Address::generate(&env);
             let period = String::from_str(&env, &period_owned);
             let root = BytesN::from_array(&env, &[1u8; 32]);
-            client.submit_attestation(&business, &period, &root, &1_000_000, &1);
+            client.submit_attestation(&business, &period, &root, &1_000_000, &1, &None);
             // Second call for the same (business, period) must panic.
-            client.submit_attestation(&business, &period, &root, &2_000_000, &2);
+            client.submit_attestation(&business, &period, &root, &2_000_000, &2, &None);
         });
 
         let err = result.expect_err(&std::format!(
@@ -536,10 +543,10 @@ fn prop_migration_succeeds_for_increasing_version() {
         let old_root = BytesN::from_array(&env, &[1u8; 32]);
         let new_root = BytesN::from_array(&env, &[2u8; 32]);
 
-        client.submit_attestation(&business, &period, &old_root, &1_000_000, &old_ver);
+        client.submit_attestation(&business, &period, &old_root, &1_000_000, &old_ver, &None);
         client.migrate_attestation(&admin, &business, &period, &new_root, &new_ver);
 
-        let (got_root, _, got_ver, _) = client.get_attestation(&business, &period).unwrap();
+        let (got_root, _, got_ver, _, _) = client.get_attestation(&business, &period).unwrap();
         assert_eq!(
             got_root, new_root,
             "old={old_ver}, new={new_ver}: root must be updated"
@@ -575,7 +582,7 @@ fn prop_migration_panics_for_non_increasing_version() {
             let period = String::from_str(&env, "2026-01");
             let old_root = BytesN::from_array(&env, &[1u8; 32]);
             let new_root = BytesN::from_array(&env, &[2u8; 32]);
-            client.submit_attestation(&business, &period, &old_root, &1_000_000, &old_ver);
+            client.submit_attestation(&business, &period, &old_root, &1_000_000, &old_ver, &None);
             client.migrate_attestation(&admin_addr, &business, &period, &new_root, &bad_new_ver);
         });
 
@@ -779,8 +786,8 @@ fn prop_business_isolation() {
     let root_a = BytesN::from_array(&env, &[1u8; 32]);
     let root_b = BytesN::from_array(&env, &[2u8; 32]);
 
-    client.submit_attestation(&biz_a, &period, &root_a, &1_000, &1);
-    client.submit_attestation(&biz_b, &period, &root_b, &2_000, &2);
+    client.submit_attestation(&biz_a, &period, &root_a, &1_000, &1, &None);
+    client.submit_attestation(&biz_b, &period, &root_b, &2_000, &2, &None);
 
     // biz_c has no attestation.
     assert!(
@@ -798,8 +805,8 @@ fn prop_business_isolation() {
     );
 
     // biz_a and biz_b have independent data.
-    let (a_root, _, a_ver, _) = client.get_attestation(&biz_a, &period).unwrap();
-    let (b_root, _, b_ver, _) = client.get_attestation(&biz_b, &period).unwrap();
+    let (a_root, _, a_ver, _, _) = client.get_attestation(&biz_a, &period).unwrap();
+    let (b_root, _, b_ver, _, _) = client.get_attestation(&biz_b, &period).unwrap();
     assert_eq!(a_root, root_a, "biz_a root must match what was submitted");
     assert_eq!(b_root, root_b, "biz_b root must match what was submitted");
     assert_ne!(a_ver, b_ver, "versions were different and must differ");
@@ -861,7 +868,7 @@ fn prop_pause_blocks_all_submissions() {
             let business = Address::generate(&env);
             let period = String::from_str(&env, &period_owned);
             let root = BytesN::from_array(&env, &[1u8; 32]);
-            client.submit_attestation(&business, &period, &root, &1_000, &1);
+            client.submit_attestation(&business, &period, &root, &1_000, &1, &None);
         });
 
         let err = result.expect_err(&std::format!(
@@ -888,7 +895,7 @@ fn prop_unpause_restores_submission() {
     client.unpause(&admin);
 
     // Must succeed after unpause.
-    client.submit_attestation(&business, &period, &root, &1_000, &1);
+    client.submit_attestation(&business, &period, &root, &1_000, &1, &None);
     assert!(
         client.get_attestation(&business, &period).is_some(),
         "attestation must exist after unpause + submit"
@@ -947,7 +954,7 @@ fn prop_fee_quote_matches_actual_charge() {
         for i in 0..vol_threshold {
             let warm_period = String::from_str(&env, &std::format!("WARM-{i:05}"));
             let warm_root = BytesN::from_array(&env, &[i as u8; 32]);
-            client.submit_attestation(&business, &warm_period, &warm_root, &1, &1);
+            client.submit_attestation(&business, &warm_period, &warm_root, &1, &1, &None);
         }
 
         // Capture quote and balance immediately before the test submission.
@@ -956,7 +963,7 @@ fn prop_fee_quote_matches_actual_charge() {
 
         let test_period = String::from_str(&env, "TEST-FINAL");
         let test_root = BytesN::from_array(&env, &[99u8; 32]);
-        client.submit_attestation(&business, &test_period, &test_root, &1_000_000, &1);
+        client.submit_attestation(&business, &test_period, &test_root, &1_000_000, &1, &None);
 
         let after = token_balance(&env, &token_addr, &business);
         let charged = before - after;
@@ -968,7 +975,7 @@ fn prop_fee_quote_matches_actual_charge() {
         );
 
         // P14-b: fee_paid field in the stored attestation record also matches.
-        let (_, _, _, fee_in_record) = client.get_attestation(&business, &test_period).unwrap();
+        let (_, _, _, fee_in_record, _) = client.get_attestation(&business, &test_period).unwrap();
         assert_eq!(
             fee_in_record, quote,
             "stored fee_paid must equal the pre-submit quote"

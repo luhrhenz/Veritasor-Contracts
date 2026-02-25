@@ -3,8 +3,6 @@
 
 use super::*;
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
-use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, BytesN, Env, String};
 
 /// Helper: register the contract and return a client.
 fn setup() -> (Env, AttestationContractClient<'static>) {
