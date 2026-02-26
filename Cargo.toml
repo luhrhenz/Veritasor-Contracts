@@ -2,12 +2,10 @@
 # Keep members in alphabetical order so new PRs add in the same place (reduces merge conflicts).
 members = [
     "contracts/attestation",
-    "contracts/attestation-snapshot",
-    "contracts/aggregated-attestations",
+    "contracts/attestor-staking",
     "contracts/audit-log",
-    "contracts/common",
     "contracts/integration-registry",
-    "contracts/revenue-curve",
+    "contracts/protocol-dao",
     "contracts/revenue-stream",
 ]
 resolver = "2"

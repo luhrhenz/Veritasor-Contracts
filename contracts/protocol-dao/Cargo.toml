@@ -1,21 +1,19 @@
 [package]
-name = "veritasor-attestation"
+name = "veritasor-protocol-dao"
 version = "0.1.0"
 edition = "2021"
 publish = false
 rust-version = "1.75.0"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 doctest = false
 
 [dependencies]
 soroban-sdk = "22.0"
-veritasor-common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { version = "22.0", features = ["testutils"] }
-veritasor-common = { path = "../common" }
 
 [profile.release]
 opt-level = "z"
@@ -26,3 +24,4 @@ debug-assertions = false
 panic = "abort"
 codegen-units = 1
 lto = true
+
